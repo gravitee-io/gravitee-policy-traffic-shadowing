@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "id": "urn:jsonschema:io:gravitee:policy:trafficshadowing:configuration:TrafficShadowingPolicy",
+  "properties": {
+    "target" : {
+      "title": "Target",
+      "description": "Target",
+      "type" : "string",
+      "x-schema-form": {
+        "expression-language": true
+      }
+    }
+  },
+  "required": [
+    "target"
+  ]
+}
