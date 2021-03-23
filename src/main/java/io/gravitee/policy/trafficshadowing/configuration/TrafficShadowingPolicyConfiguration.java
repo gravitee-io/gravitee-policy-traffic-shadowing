@@ -17,6 +17,8 @@ package io.gravitee.policy.trafficshadowing.configuration;
 
 import io.gravitee.policy.api.PolicyConfiguration;
 
+import java.util.List;
+
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
  * @author GraviteeSource Team
@@ -25,11 +27,21 @@ public class TrafficShadowingPolicyConfiguration implements PolicyConfiguration 
 
     private String target;
 
+    private List<HttpHeader> headers = null;
+
     public String getTarget() {
         return target;
     }
 
     public void setTarget(String target) {
         this.target = target;
+    }
+
+    public List<HttpHeader> getHeaders() {
+        return headers;
+    }
+
+    public void setHeaders(List<HttpHeader> headers) {
+        this.headers = headers;
     }
 }
