@@ -1,17 +1,21 @@
-= HTTP Signature
+= Traffic Shadowing
 
 ifdef::env-github[]
-image:https://ci.gravitee.io/buildStatus/icon?job=gravitee-io/gravitee-policy-http-signature/master["Build status", link="https://ci.gravitee.io/job/gravitee-io/job/gravitee-policy-http-signature/"]
+image:https://ci.gravitee.io/buildStatus/icon?job=gravitee-io/gravitee-policy-traffic-shadowing/master["Build status", link="https://ci.gravitee.io/job/gravitee-io/job/gravitee-policy-traffic-shadowing/"]
 image:https://badges.gitter.im/Join Chat.svg["Gitter", link="https://gitter.im/gravitee-io/gravitee-io?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge"]
 endif::[]
 
 == Phase
 
-[cols="2*", options="header"]
+[cols="4*", options="header"]
 |===
 ^|onRequest
 ^|onResponse
+^|onRequestContent
+^|onResponseContent
 
+^.^| -
+^.^| -
 ^.^| X
 ^.^| -
 
@@ -19,93 +23,40 @@ endif::[]
 
 == Description
 
-HTTP Signature is a kind of authentication method which is adding a new level of security. By using this policy, the
-consumer is enforced to send a _signature_ which is used to identify the request temporarily and ensure that the
-request is really coming from the requesting consumer, using a secret key.
-
-NOTE: Current version of the policy does not support *Digest* header.
+Traffic shadowing allows to asynchronously copy the traffic to another service. By using this policy, the requests are duplicated and sent to the target. The target is an endpoint defined at the API level. The request can be enriched with additional headers.
 
 == Configuration
 
 |===
 |Property |Required |Description |Default |Example
 
-.^|scheme
+.^|target
 ^.^|X
-|Signature Scheme (authentication scheme or signature header)
-^.^| authentication
+|The target endpoint (supports EL).
 ^.^| -
+^.^| {#endpoints['my-endpoint']}
 
-.^|secret
-^.^|X
-|The secret key used to generate and verify the signature (supports EL).
-^.^| -
-^.^| passphrase
-
-.^|algorithms
+.^|headers
 ^.^|-
-|A list of supported HMAC digest algorithms.
+|A list of HTTP headers.
 ^.^| -
-^.^| -
-
-.^|enforceHeaders
-^.^| -
-|List of headers the consumer must at least use for HTTP signature creation.
-^.^| -
-^.^| -
-
-.^|clockSkew
-^.^|-
-|Clock Skew in seconds to prevent replay attacks.
-^.^| 30
 ^.^| -
 
 |===
 
 
 [source, json]
-.HTTP Signature Policy example:
+.Traffic Shadowing Policy example:
 ----
 {
-  "http-signature": {
-	"scheme":"AUTHORIZATION",
-	"clockSkew":30,
-	"secret":"my-passphrase",
-	"algorithms":["HMAC_SHA256"],
-	"enforceHeaders":["Date","Host"]
+  "traffic-shadowing": {
+    "target": "{#endpoint['target-endpoint']}",
+    "headers": [
+        {
+            "name": "X-Gravitee-Request-Id",
+            "value": "{#request.id}"
+        }
+    ]
   }
 }
 ----
-
-== Http Status Code
-
-|===
-|Code |Message
-
-.^| ```401```
-| In case of:
-
-* Missing or signature
-
-* Request does not contain headers part of the signature
-
-* Enforce HTTP headers not part of the signature
-|===
-
-== Errors
-
-If you're looking to override the default response provided by the policy, you can do it
-thanks to the response templates feature. These templates must be define at the API level (see `Response Templates`
-from the `Proxy` menu).
-
-Here are the error keys send by this policy:
-
-[cols="2*", options="header"]
-|===
-^|Key
-^|Parameters
-
-.^|HTTP_SIGNATURE_INVALID_SIGNATURE
-^.^|-
-
-|===
