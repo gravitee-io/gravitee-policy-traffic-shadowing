@@ -27,9 +27,7 @@ public class HttpHeader {
 
     private String value;
 
-    public HttpHeader() {
-
-    }
+    public HttpHeader() {}
 
     public HttpHeader(String name, String value) {
         this.name = name;
