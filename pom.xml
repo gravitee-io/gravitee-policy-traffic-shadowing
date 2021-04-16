@@ -23,7 +23,7 @@
 
     <groupId>io.gravitee.policy</groupId>
     <artifactId>gravitee-policy-traffic-shadowing</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0</version>
 
     <name>Gravitee.io APIM - Policy - Traffic Shadowing</name>
     <description>Description of the Traffic Shadowing Gravitee Policy</description>
@@ -35,7 +35,7 @@
     </parent>
 
     <properties>
-        <gravitee-gateway-api.version>1.25.0-SNAPSHOT</gravitee-gateway-api.version>
+        <gravitee-gateway-api.version>1.25.0</gravitee-gateway-api.version>
         <gravitee-policy-api.version>1.10.0</gravitee-policy-api.version>
         <gravitee-common.version>1.18.0</gravitee-common.version>
         <maven-assembly-plugin.version>2.5.5</maven-assembly-plugin.version>
