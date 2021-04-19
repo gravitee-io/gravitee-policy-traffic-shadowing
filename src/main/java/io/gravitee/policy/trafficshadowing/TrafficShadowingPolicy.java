@@ -52,18 +52,19 @@ public class TrafficShadowingPolicy {
 
         if (endpoint != null) {
             HttpHeaders shadowingHeaders = addShadowingHeaders(context.request().headers(), context);
-            ProxyRequest proxyRequest = endpoint.createProxyRequest(context.request(),
-                    proxyRequestBuilder -> proxyRequestBuilder.headers(shadowingHeaders));
+            ProxyRequest proxyRequest = endpoint.createProxyRequest(
+                context.request(),
+                proxyRequestBuilder -> proxyRequestBuilder.headers(shadowingHeaders)
+            );
 
             ProxyConnection connection = endpoint.connector().request(proxyRequest);
 
             if (connection != null) {
-
-                connection.responseHandler(response ->  {
+                connection.responseHandler(
+                    response -> {
                         LOGGER.debug("Traffic shadowing status is: {}", response.status());
 
-                        response.bodyHandler(buffer -> {})
-                                .endHandler(handler -> {});
+                        response.bodyHandler(buffer -> {}).endHandler(handler -> {});
                     }
                 );
 
@@ -95,22 +96,25 @@ public class TrafficShadowingPolicy {
     private HttpHeaders addShadowingHeaders(HttpHeaders headers, ExecutionContext context) {
         HttpHeaders httpHeaders = new HttpHeaders(headers);
         if (configuration.getHeaders() != null) {
-            configuration.getHeaders().forEach(
-                header -> {
-                    if (header.getName() != null && !header.getName().trim().isEmpty()) {
-                        try {
-                            String extValue = (header.getValue() != null) ?
-                                    context.getTemplateEngine().convert(header.getValue()) : null;
-                            if (extValue != null) {
-                                httpHeaders.set(header.getName(), extValue);
+            configuration
+                .getHeaders()
+                .forEach(
+                    header -> {
+                        if (header.getName() != null && !header.getName().trim().isEmpty()) {
+                            try {
+                                String extValue = (header.getValue() != null)
+                                    ? context.getTemplateEngine().convert(header.getValue())
+                                    : null;
+                                if (extValue != null) {
+                                    httpHeaders.set(header.getName(), extValue);
+                                }
+                            } catch (Exception ex) {
+                                // Do nothing
+                                ex.printStackTrace();
                             }
-                        } catch (Exception ex) {
-                            // Do nothing
-                            ex.printStackTrace();
                         }
                     }
-                }
-            );
+                );
         }
         return httpHeaders;
     }

@@ -15,13 +15,12 @@
  */
 package io.gravitee.policy.trafficshadowing.configuration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.Test;
+import static org.junit.Assert.*;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.net.URL;
-
-import static org.junit.Assert.*;
+import org.junit.Test;
 
 /**
  * @author Yann TAVERNIER (yann.tavernier at graviteesource.com)
@@ -31,8 +30,10 @@ public class TrafficShadowingPolicyConfigurationTest {
 
     @Test
     public void test_configuration() throws IOException {
-        TrafficShadowingPolicyConfiguration configuration =
-                load("/io/gravitee/policy/trafficshadowing/configuration/configuration.json", TrafficShadowingPolicyConfiguration.class);
+        TrafficShadowingPolicyConfiguration configuration = load(
+            "/io/gravitee/policy/trafficshadowing/configuration/configuration.json",
+            TrafficShadowingPolicyConfiguration.class
+        );
 
         assertNotNull(configuration.getHeaders());
         assertNotNull(configuration.getTarget());

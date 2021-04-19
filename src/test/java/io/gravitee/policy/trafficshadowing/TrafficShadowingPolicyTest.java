@@ -15,6 +15,16 @@
  */
 package io.gravitee.policy.trafficshadowing;
 
+import static java.util.Collections.singletonList;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.AdditionalAnswers.returnsFirstArg;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.MockitoAnnotations.initMocks;
+
 import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.el.TemplateEngine;
 import io.gravitee.gateway.api.Connector;
@@ -27,24 +37,13 @@ import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.gateway.api.proxy.builder.ProxyRequestBuilder;
 import io.gravitee.policy.trafficshadowing.configuration.HttpHeader;
 import io.gravitee.policy.trafficshadowing.configuration.TrafficShadowingPolicyConfiguration;
+import java.util.function.Function;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
-
-import java.util.function.Function;
-
-import static java.util.Collections.singletonList;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.AdditionalAnswers.returnsFirstArg;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.mockito.MockitoAnnotations.initMocks;
 
 /**
  * @author Yann TAVERNIER (yann.tavernier at graviteesource.com)
@@ -151,6 +150,7 @@ public class TrafficShadowingPolicyTest {
     }
 
     public static class MockProxyEndpoint implements ProxyEndpoint {
+
         @Override
         public String name() {
             return null;
@@ -182,20 +182,14 @@ public class TrafficShadowingPolicyTest {
         }
 
         @Override
-        public void addEndpointAvailabilityListener(EndpointAvailabilityListener listener) {
-
-        }
+        public void addEndpointAvailabilityListener(EndpointAvailabilityListener listener) {}
 
         @Override
-        public void removeEndpointAvailabilityListener(EndpointAvailabilityListener listener) {
-
-        }
+        public void removeEndpointAvailabilityListener(EndpointAvailabilityListener listener) {}
 
         @Override
         public ProxyRequest createProxyRequest(Request request, Function<ProxyRequestBuilder, ProxyRequestBuilder> mapper) {
-            ProxyRequestBuilder builder = ProxyRequestBuilder.from(request)
-                    .uri("uri")
-                    .parameters(null);
+            ProxyRequestBuilder builder = ProxyRequestBuilder.from(request).uri("uri").parameters(null);
 
             if (mapper != null) {
                 builder = mapper.apply(builder);
@@ -204,5 +198,4 @@ public class TrafficShadowingPolicyTest {
             return builder.build();
         }
     }
-
 }

@@ -16,7 +16,6 @@
 package io.gravitee.policy.trafficshadowing.configuration;
 
 import io.gravitee.policy.api.PolicyConfiguration;
-
 import java.util.List;
 
 /**
