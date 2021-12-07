@@ -16,18 +16,23 @@
 package io.gravitee.policy.trafficshadowing;
 
 import io.gravitee.common.http.HttpHeaders;
+import io.gravitee.gateway.api.Connector;
 import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.endpoint.resolver.EndpointResolver;
 import io.gravitee.gateway.api.endpoint.resolver.ProxyEndpoint;
+import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.proxy.ProxyConnection;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.gateway.api.stream.ReadWriteStream;
 import io.gravitee.gateway.api.stream.SimpleReadWriteStream;
+import io.gravitee.gateway.api.stream.WriteStream;
 import io.gravitee.policy.api.annotations.OnRequestContent;
 import io.gravitee.policy.trafficshadowing.configuration.TrafficShadowingPolicyConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.Queue;
 
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
@@ -57,40 +62,82 @@ public class TrafficShadowingPolicy {
                 proxyRequestBuilder -> proxyRequestBuilder.headers(shadowingHeaders)
             );
 
-            ProxyConnection connection = endpoint.connector().request(proxyRequest);
+            final QueuedProxyConnection queuedProxyConnection = new QueuedProxyConnection(endpoint.connector(), proxyRequest);
 
-            if (connection != null) {
-                connection.responseHandler(
-                    response -> {
-                        LOGGER.debug("Traffic shadowing status is: {}", response.status());
+            return new SimpleReadWriteStream<Buffer>() {
+                @Override
+                public SimpleReadWriteStream<Buffer> write(Buffer chunk) {
+                    queuedProxyConnection.write(chunk);
 
-                        response.bodyHandler(buffer -> {}).endHandler(handler -> {});
-                    }
-                );
-
-                return new SimpleReadWriteStream<Buffer>() {
-                    @Override
-                    public SimpleReadWriteStream<Buffer> write(Buffer chunk) {
-                        connection.write(chunk);
-
-                        if (connection.writeQueueFull()) {
-                            pause();
-                            connection.drainHandler(aVoid -> resume());
-                        }
-
-                        return super.write(chunk);
+                    if (queuedProxyConnection.writeQueueFull()) {
+                        pause();
+                        queuedProxyConnection.drainHandler(aVoid -> resume());
                     }
 
-                    @Override
-                    public void end() {
-                        connection.end();
-                        super.end();
-                    }
-                };
-            }
+                    return super.write(chunk);
+                }
+
+                @Override
+                public void end() {
+                    queuedProxyConnection.end();
+                    super.end();
+                }
+            };
         }
 
         return null;
+    }
+
+    public class QueuedProxyConnection implements ProxyConnection {
+
+        private ProxyConnection proxyConnection;
+
+        private Queue<Buffer> queue;
+
+        public QueuedProxyConnection(Connector connector, ProxyRequest proxyRequest) {
+            connector.request(proxyRequest, connection -> {
+                if (connection != null) {
+                    proxyConnection = connection;
+
+                    connection.responseHandler(
+                            response -> {
+                                LOGGER.debug("Traffic shadowing status is: {}", response.status());
+
+                                response.bodyHandler(buffer -> {}).endHandler(handler -> {});
+                            }
+                    );
+
+                    // We succeeded to do the connection to underlying backend, so push back remaining buffer
+                    Buffer buffer = null;
+                    while (buffer == queue.poll()) {
+                        this.write(buffer);
+                    }
+                }
+            });
+        }
+
+        @Override
+        public WriteStream<Buffer> write(Buffer buffer) {
+            if (proxyConnection != null || queue.size() > 0) {
+                // Write can only be done when the queue is empty, otherwise, we will have ordering issue
+                proxyConnection.write(buffer);
+            } else {
+                queue.add(buffer);
+            }
+
+            return this;
+        }
+
+        @Override
+        public void end() {
+            if (proxyConnection != null) {
+                // End must be called only when we are sure all the chunk have been written back to the underlying
+                // proxy connection
+                if (queue.size() == 0) {
+                    proxyConnection.end();
+                }
+            }
+        }
     }
 
     private HttpHeaders addShadowingHeaders(HttpHeaders headers, ExecutionContext context) {
