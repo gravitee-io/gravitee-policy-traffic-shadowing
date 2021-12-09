@@ -21,8 +21,7 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 import static org.mockito.MockitoAnnotations.initMocks;
 
 import io.gravitee.common.http.HttpHeaders;
@@ -89,6 +88,7 @@ public class TrafficShadowingPolicyTest {
         when(executionContext.getTemplateEngine()).thenReturn(templateEngine);
         when(executionContext.getComponent(EndpointResolver.class)).thenReturn(endpointResolver);
         when(executionContext.request()).thenReturn(request);
+        when(request.uri()).thenReturn("http://test/uri");
         when(request.headers()).thenReturn(requestHttpHeaders);
         when(templateEngine.convert(any(String.class))).thenAnswer(returnsFirstArg());
 
@@ -118,35 +118,38 @@ public class TrafficShadowingPolicyTest {
         requestHttpHeaders.add("X-Gravitee-Policy", "value");
         when(endpointResolver.resolve(any())).thenReturn(proxyEndpoint);
         when(trafficShadowingPolicyConfiguration.getHeaders()).thenReturn(singletonList(new HttpHeader("Custom-Header", "custom")));
-        when(proxyEndpoint.createProxyRequest(any(), any())).thenCallRealMethod();
-
-        ArgumentCaptor<ProxyRequest> proxyRequestArgumentCaptor = ArgumentCaptor.forClass(ProxyRequest.class);
 
         trafficShadowingPolicy.onRequestContent(executionContext);
 
-        verify(connector).request(proxyRequestArgumentCaptor.capture());
+        ArgumentCaptor<Function<ProxyRequestBuilder, ProxyRequestBuilder>> requestBuilderFunctionCaptor = ArgumentCaptor.forClass(
+            Function.class
+        );
+        verify(proxyEndpoint, times(1)).createProxyRequest(same(request), requestBuilderFunctionCaptor.capture());
 
-        assertEquals(2, proxyRequestArgumentCaptor.getValue().headers().size());
-        assertTrue(proxyRequestArgumentCaptor.getValue().headers().containsKey("X-Gravitee-Policy"));
-        assertTrue(proxyRequestArgumentCaptor.getValue().headers().containsKey("Custom-Header"));
+        ProxyRequest updatedRequest = requestBuilderFunctionCaptor.getValue().apply(ProxyRequestBuilder.from(request)).build();
+        assertEquals(2, updatedRequest.headers().size());
+        assertTrue(updatedRequest.headers().containsKey("X-Gravitee-Policy"));
+        assertTrue(updatedRequest.headers().containsKey("Custom-Header"));
     }
 
     @Test
-    public void shouldUpdateHeadersToOriginalRequest() {
+    public void shouldUpdateHeadersInShadowingRequest() {
         requestHttpHeaders.add("X-Gravitee-Policy", "value");
         when(endpointResolver.resolve(any())).thenReturn(proxyEndpoint);
         when(trafficShadowingPolicyConfiguration.getHeaders()).thenReturn(singletonList(new HttpHeader("X-Gravitee-Policy", "custom")));
-        when(proxyEndpoint.createProxyRequest(any(), any())).thenCallRealMethod();
-
-        ArgumentCaptor<ProxyRequest> proxyRequestArgumentCaptor = ArgumentCaptor.forClass(ProxyRequest.class);
 
         trafficShadowingPolicy.onRequestContent(executionContext);
 
-        verify(connector).request(proxyRequestArgumentCaptor.capture());
+        ArgumentCaptor<Function<ProxyRequestBuilder, ProxyRequestBuilder>> requestBuilderFunctionCaptor = ArgumentCaptor.forClass(
+            Function.class
+        );
+        verify(proxyEndpoint, times(1)).createProxyRequest(same(request), requestBuilderFunctionCaptor.capture());
 
-        assertEquals(1, proxyRequestArgumentCaptor.getValue().headers().size());
-        assertTrue(proxyRequestArgumentCaptor.getValue().headers().containsKey("X-Gravitee-Policy"));
-        assertEquals("custom", proxyRequestArgumentCaptor.getValue().headers().get("X-Gravitee-Policy").get(0));
+        ProxyRequest updatedRequest = requestBuilderFunctionCaptor.getValue().apply(ProxyRequestBuilder.from(request)).build();
+
+        assertEquals(1, updatedRequest.headers().size());
+        assertTrue(updatedRequest.headers().containsKey("X-Gravitee-Policy"));
+        assertEquals("custom", updatedRequest.headers().get("X-Gravitee-Policy").get(0));
     }
 
     public static class MockProxyEndpoint implements ProxyEndpoint {

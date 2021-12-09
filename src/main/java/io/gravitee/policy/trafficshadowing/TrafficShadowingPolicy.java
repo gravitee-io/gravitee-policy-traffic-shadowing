@@ -32,8 +32,6 @@ import io.gravitee.policy.trafficshadowing.configuration.TrafficShadowingPolicyC
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Queue;
-
 /**
  * @author David BRASSELY (david.brassely at graviteesource.com)
  * @author GraviteeSource Team
@@ -62,7 +60,14 @@ public class TrafficShadowingPolicy {
                 proxyRequestBuilder -> proxyRequestBuilder.headers(shadowingHeaders)
             );
 
-            final QueuedProxyConnection queuedProxyConnection = new QueuedProxyConnection(endpoint.connector(), proxyRequest);
+            final QueuedProxyConnection queuedProxyConnection = new QueuedProxyConnection(
+                endpoint.connector(),
+                proxyRequest,
+                proxyResponse -> {
+                    LOGGER.debug("Traffic shadowing status is: {}", proxyResponse.status());
+                    proxyResponse.bodyHandler(buffer -> {}).endHandler(handler -> {});
+                }
+            );
 
             return new SimpleReadWriteStream<Buffer>() {
                 @Override
@@ -88,58 +93,6 @@ public class TrafficShadowingPolicy {
         return null;
     }
 
-    public class QueuedProxyConnection implements ProxyConnection {
-
-        private ProxyConnection proxyConnection;
-
-        private Queue<Buffer> queue;
-
-        public QueuedProxyConnection(Connector connector, ProxyRequest proxyRequest) {
-            connector.request(proxyRequest, connection -> {
-                if (connection != null) {
-                    proxyConnection = connection;
-
-                    connection.responseHandler(
-                            response -> {
-                                LOGGER.debug("Traffic shadowing status is: {}", response.status());
-
-                                response.bodyHandler(buffer -> {}).endHandler(handler -> {});
-                            }
-                    );
-
-                    // We succeeded to do the connection to underlying backend, so push back remaining buffer
-                    Buffer buffer = null;
-                    while (buffer == queue.poll()) {
-                        this.write(buffer);
-                    }
-                }
-            });
-        }
-
-        @Override
-        public WriteStream<Buffer> write(Buffer buffer) {
-            if (proxyConnection != null || queue.size() > 0) {
-                // Write can only be done when the queue is empty, otherwise, we will have ordering issue
-                proxyConnection.write(buffer);
-            } else {
-                queue.add(buffer);
-            }
-
-            return this;
-        }
-
-        @Override
-        public void end() {
-            if (proxyConnection != null) {
-                // End must be called only when we are sure all the chunk have been written back to the underlying
-                // proxy connection
-                if (queue.size() == 0) {
-                    proxyConnection.end();
-                }
-            }
-        }
-    }
-
     private HttpHeaders addShadowingHeaders(HttpHeaders headers, ExecutionContext context) {
         HttpHeaders httpHeaders = new HttpHeaders(headers);
         if (configuration.getHeaders() != null) {
@@ -156,8 +109,7 @@ public class TrafficShadowingPolicy {
                                     httpHeaders.set(header.getName(), extValue);
                                 }
                             } catch (Exception ex) {
-                                // Do nothing
-                                ex.printStackTrace();
+                                LOGGER.error("Error adding header {}", header.getName(), ex);
                             }
                         }
                     }
