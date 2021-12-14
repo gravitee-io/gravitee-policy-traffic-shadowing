@@ -16,17 +16,12 @@
 package io.gravitee.policy.trafficshadowing;
 
 import io.gravitee.common.http.HttpHeaders;
-import io.gravitee.gateway.api.Connector;
 import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.endpoint.resolver.EndpointResolver;
 import io.gravitee.gateway.api.endpoint.resolver.ProxyEndpoint;
-import io.gravitee.gateway.api.handler.Handler;
-import io.gravitee.gateway.api.proxy.ProxyConnection;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.gateway.api.stream.ReadWriteStream;
-import io.gravitee.gateway.api.stream.SimpleReadWriteStream;
-import io.gravitee.gateway.api.stream.WriteStream;
 import io.gravitee.policy.api.annotations.OnRequestContent;
 import io.gravitee.policy.trafficshadowing.configuration.TrafficShadowingPolicyConfiguration;
 import org.slf4j.Logger;
@@ -69,25 +64,7 @@ public class TrafficShadowingPolicy {
                 }
             );
 
-            return new SimpleReadWriteStream<Buffer>() {
-                @Override
-                public SimpleReadWriteStream<Buffer> write(Buffer chunk) {
-                    queuedProxyConnection.write(chunk);
-
-                    if (queuedProxyConnection.writeQueueFull()) {
-                        pause();
-                        queuedProxyConnection.drainHandler(aVoid -> resume());
-                    }
-
-                    return super.write(chunk);
-                }
-
-                @Override
-                public void end() {
-                    queuedProxyConnection.end();
-                    super.end();
-                }
-            };
+            return new PressureSafeWriteStream(queuedProxyConnection);
         }
 
         return null;

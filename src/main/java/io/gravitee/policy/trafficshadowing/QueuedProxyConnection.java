@@ -22,11 +22,19 @@ import io.gravitee.gateway.api.proxy.ProxyConnection;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.gateway.api.proxy.ProxyResponse;
 import io.gravitee.gateway.api.stream.WriteStream;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+/**
+ * A ProxyConnection handling connection asynchronously.
+ * You can write in before being connected ;
+ * Written chunks will be enqueued, and sent to the backend after successful connection.
+ *
+ * @author GraviteeSource Team
+ */
 public class QueuedProxyConnection implements ProxyConnection {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(QueuedProxyConnection.class);
@@ -41,16 +49,20 @@ public class QueuedProxyConnection implements ProxyConnection {
             connection -> {
                 if (connection != null) {
                     LOGGER.debug("*** Connection result"); // TODO: remove log
+
+                    // TODO : we don't really succeed to connect when here ; this will be triggered also on connection fail
+
                     proxyConnection = connection;
                     proxyConnection.responseHandler(responseHandler);
-                    proxyConnection.cancelHandler(v -> handleConnectionCancel(v, request));
+                    proxyConnection.cancelHandler(v -> handleConnectionCancel(request));
                     proxyConnection.exceptionHandler(e -> handleConnectionException(e, request));
 
                     // We succeeded to do the connection to underlying backend, so push back remaining buffer
                     Buffer buffer = null;
+                    PressureSafeWriteStream writeStream = new PressureSafeWriteStream(proxyConnection);
                     while ((buffer = queue.poll()) != null) {
                         LOGGER.debug("****** Writing polled buffer to connection"); // TODO: remove log
-                        proxyConnection.write(buffer);
+                        writeStream.write(buffer);
                     }
                 } else {
                     LOGGER.error("Null connection retrieved");
@@ -82,6 +94,7 @@ public class QueuedProxyConnection implements ProxyConnection {
 
     @Override
     public void end() {
+        // TODO : how to end properly if ended before connected ?
         if (proxyConnection != null) {
             // End must be called only when we are sure all the chunk have been written back to the underlying proxy connection
             if (queue.isEmpty()) {
@@ -95,7 +108,7 @@ public class QueuedProxyConnection implements ProxyConnection {
         queue.clear();
     }
 
-    private void handleConnectionCancel(Void unused, ProxyRequest request) {
+    private void handleConnectionCancel(ProxyRequest request) {
         LOGGER.error("Connection to {} cancelled", request.uri());
         queue.clear();
     }
