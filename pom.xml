@@ -37,7 +37,7 @@
     <properties>
         <gravitee-gateway-api.version>1.25.0</gravitee-gateway-api.version>
         <gravitee-policy-api.version>1.10.0</gravitee-policy-api.version>
-        <gravitee-common.version>1.18.0</gravitee-common.version>
+        <gravitee-common.version>1.25.0</gravitee-common.version>
         <maven-assembly-plugin.version>2.5.5</maven-assembly-plugin.version>
         <!-- Property used by the publication job in CI-->
         <publish-folder-path>graviteeio-apim/plugins/policies</publish-folder-path>
