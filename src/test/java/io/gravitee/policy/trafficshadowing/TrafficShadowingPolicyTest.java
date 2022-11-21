@@ -25,7 +25,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.initMocks;
 
-import io.gravitee.common.http.HttpHeaders;
 import io.gravitee.el.TemplateEngine;
 import io.gravitee.gateway.api.Connector;
 import io.gravitee.gateway.api.ExecutionContext;
@@ -33,6 +32,7 @@ import io.gravitee.gateway.api.Request;
 import io.gravitee.gateway.api.endpoint.EndpointAvailabilityListener;
 import io.gravitee.gateway.api.endpoint.resolver.EndpointResolver;
 import io.gravitee.gateway.api.endpoint.resolver.ProxyEndpoint;
+import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.gateway.api.proxy.builder.ProxyRequestBuilder;
 import io.gravitee.policy.trafficshadowing.configuration.HttpHeader;
@@ -78,13 +78,13 @@ public class TrafficShadowingPolicyTest {
     @Mock
     private Connector connector;
 
-    private HttpHeaders requestHttpHeaders = new HttpHeaders();
+    private io.gravitee.gateway.api.http.HttpHeaders requestHttpHeaders = HttpHeaders.create();
 
     @Before
     public void init() {
         initMocks(this);
 
-        requestHttpHeaders = new HttpHeaders();
+        requestHttpHeaders = HttpHeaders.create();
         trafficShadowingPolicy = new TrafficShadowingPolicy(trafficShadowingPolicyConfiguration);
         when(executionContext.getTemplateEngine()).thenReturn(templateEngine);
         when(executionContext.getComponent(EndpointResolver.class)).thenReturn(endpointResolver);
@@ -124,7 +124,7 @@ public class TrafficShadowingPolicyTest {
 
         trafficShadowingPolicy.onRequestContent(executionContext);
 
-        verify(connector).request(proxyRequestArgumentCaptor.capture());
+        verify(connector).request(proxyRequestArgumentCaptor.capture(), any(), any());
 
         assertEquals(2, proxyRequestArgumentCaptor.getValue().headers().size());
         assertTrue(proxyRequestArgumentCaptor.getValue().headers().containsKey("X-Gravitee-Policy"));
@@ -142,11 +142,11 @@ public class TrafficShadowingPolicyTest {
 
         trafficShadowingPolicy.onRequestContent(executionContext);
 
-        verify(connector).request(proxyRequestArgumentCaptor.capture());
+        verify(connector).request(proxyRequestArgumentCaptor.capture(), any(), any());
 
         assertEquals(1, proxyRequestArgumentCaptor.getValue().headers().size());
         assertTrue(proxyRequestArgumentCaptor.getValue().headers().containsKey("X-Gravitee-Policy"));
-        assertEquals("custom", proxyRequestArgumentCaptor.getValue().headers().get("X-Gravitee-Policy").get(0));
+        assertEquals("custom", proxyRequestArgumentCaptor.getValue().headers().get("X-Gravitee-Policy"));
     }
 
     public static class MockProxyEndpoint implements ProxyEndpoint {
