@@ -27,6 +27,15 @@ endif::[]
 
 Traffic shadowing allows to asynchronously copy the traffic to another service. By using this policy, the requests are duplicated and sent to the target. The target is an endpoint defined at the API level. The request can be enriched with additional headers.
 
+== Compatibility with APIM
+
+|===
+| Plugin version | APIM version
+
+| 2.x and upper  | 3.18.20, 3.19.9, 3.20.3 and upper.
+| Up to 1.1.x    | Up to 3.14.x
+|===
+
 == Configuration
 
 |===
@@ -52,7 +61,7 @@ Traffic shadowing allows to asynchronously copy the traffic to another service. 
 ----
 {
   "traffic-shadowing": {
-    "target": "{#endpoint['target-endpoint']}",
+    "target": "{#endpoints['target-endpoint']}",
     "headers": [
         {
             "name": "X-Gravitee-Request-Id",

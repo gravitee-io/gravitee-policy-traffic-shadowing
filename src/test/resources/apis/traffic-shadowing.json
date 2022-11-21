@@ -1,0 +1,58 @@
+{
+  "id": "my-api",
+  "name": "my-api",
+  "gravitee": "2.0.0",
+  "proxy": {
+    "context_path": "/test",
+    "endpoints": [
+      {
+        "name": "default",
+        "target": "http://localhost:8080/endpoint",
+        "http": {
+          "connectTimeout": 3000,
+          "readTimeout": 60000
+        }
+      },
+      {
+        "name": "shadow-endpoint",
+        "target": "http://localhost:8080/shadow-endpoint",
+        "http": {
+          "connectTimeout": 3000,
+          "readTimeout": 60000
+        }
+      }
+    ]
+  },
+  "flows": [
+    {
+      "name": "flow-1",
+      "methods": [
+        "POST"
+      ],
+      "enabled": true,
+      "path-operator": {
+        "path": "/",
+        "operator": "STARTS_WITH"
+      },
+      "pre": [
+        {
+          "name": "Traffic Shadowing",
+          "description": "",
+          "enabled": true,
+          "policy": "traffic-shadowing",
+          "configuration": {
+            "scope": "REQUEST_CONTENT",
+            "target": "{#endpoints['shadow-endpoint']}",
+            "headers": [
+              {
+                "name": "Custom-Request-Id-Header",
+                "value": "id-{#request.id}"
+              }
+            ]
+          }
+        }
+      ],
+      "post": []
+    }
+  ]
+}
