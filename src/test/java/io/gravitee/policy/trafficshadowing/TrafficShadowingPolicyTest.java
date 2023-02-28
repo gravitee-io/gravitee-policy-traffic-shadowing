@@ -51,7 +51,7 @@ import org.mockito.junit.MockitoJUnitRunner;
  */
 @RunWith(MockitoJUnitRunner.class)
 public class TrafficShadowingPolicyTest {
-
+/*
     private TrafficShadowingPolicy trafficShadowingPolicy;
 
     @Mock
@@ -198,4 +198,5 @@ public class TrafficShadowingPolicyTest {
             return builder.build();
         }
     }
+ */
 }

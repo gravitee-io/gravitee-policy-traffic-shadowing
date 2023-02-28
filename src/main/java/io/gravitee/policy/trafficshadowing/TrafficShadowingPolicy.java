@@ -16,19 +16,21 @@
 package io.gravitee.policy.trafficshadowing;
 
 import io.gravitee.gateway.api.ExecutionContext;
+import io.gravitee.gateway.api.Invoker;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.endpoint.resolver.EndpointResolver;
 import io.gravitee.gateway.api.endpoint.resolver.ProxyEndpoint;
+import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.http.HttpHeaders;
+import io.gravitee.gateway.api.http2.HttpFrame;
 import io.gravitee.gateway.api.proxy.ProxyConnection;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
-import io.gravitee.gateway.api.stream.BufferedReadWriteStream;
-import io.gravitee.gateway.api.stream.ReadWriteStream;
-import io.gravitee.gateway.api.stream.SimpleReadWriteStream;
-import io.gravitee.policy.api.annotations.OnRequestContent;
+import io.gravitee.gateway.api.proxy.ProxyResponse;
+import io.gravitee.gateway.api.stream.ReadStream;
+import io.gravitee.gateway.api.stream.WriteStream;
+import io.gravitee.policy.api.PolicyChain;
+import io.gravitee.policy.api.annotations.OnRequest;
 import io.gravitee.policy.trafficshadowing.configuration.TrafficShadowingPolicyConfiguration;
-import java.util.ArrayList;
-import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,25 +48,152 @@ public class TrafficShadowingPolicy {
         this.configuration = configuration;
     }
 
-    @OnRequestContent
-    public ReadWriteStream<Buffer> onRequestContent(ExecutionContext context) {
-        final EndpointResolver endpointResolver = context.getComponent(EndpointResolver.class);
+    @OnRequest
+    public void onRequest(ExecutionContext context, PolicyChain chain) {
+        // Override the invoker
+        Invoker defaultInvoker = (Invoker) context.getAttribute(ExecutionContext.ATTR_INVOKER);
+        context.setAttribute(ExecutionContext.ATTR_INVOKER, new ShadowInvoker(defaultInvoker));
 
-        String configurationTarget = configuration.getTarget();
-        String target = context.getTemplateEngine().eval(configurationTarget, String.class).blockingGet();
-        ProxyEndpoint endpoint = endpointResolver.resolve(target);
+        chain.doNext(context.request(), context.response());
+    }
 
-        if (endpoint != null) {
-            HttpHeaders shadowingHeaders = addShadowingHeaders(context.request().headers(), context);
-            ProxyRequest proxyRequest = endpoint.createProxyRequest(
-                context.request(),
-                proxyRequestBuilder -> proxyRequestBuilder.headers(shadowingHeaders)
-            );
+    private class ShadowInvoker implements Invoker {
 
-            return new ShadowingReadWriteStream(proxyRequest, context, endpoint);
+        private final Invoker invoker;
+
+        public ShadowInvoker(Invoker invoker) {
+            this.invoker = invoker;
         }
 
-        return null;
+        @Override
+        public void invoke(ExecutionContext context, ReadStream<Buffer> stream, Handler<ProxyConnection> connectionHandler) {
+            final EndpointResolver endpointResolver = context.getComponent(EndpointResolver.class);
+
+            String configurationTarget = configuration.getTarget();
+            String target = context.getTemplateEngine().eval(configurationTarget, String.class).blockingGet();
+            ProxyEndpoint endpoint = endpointResolver.resolve(target);
+
+            if (endpoint == null) {
+                // No shadow endpoint resolved, keep continuing with standard endpoint.
+                invoker.invoke(
+                        context,
+                        stream,
+                        connectionHandler
+                );
+            } else {
+                final HttpHeaders shadowingHeaders = addShadowingHeaders(context.request().headers(), context);
+                final ProxyRequest proxyRequest = endpoint.createProxyRequest(
+                        context.request(),
+                        proxyRequestBuilder -> proxyRequestBuilder.headers(shadowingHeaders)
+                );
+
+                endpoint
+                        .connector()
+                        .request(
+                                proxyRequest,
+                                context,
+                                shadowConnection -> {
+                                    shadowConnection.responseHandler(response -> {
+                                        LOGGER.debug("Traffic shadowing status is: {}", response.status());
+
+                                        response.bodyHandler(__ -> {})
+                                                .endHandler(__ -> {});
+
+                                        // Resume the shadow response to read the stream and mark as ended
+                                        response.resume();
+                                    });
+
+                                    shadowConnection.exceptionHandler(throwable -> {
+                                        LOGGER.error("An error occurs while sending traffic shadowing request", throwable);
+                                    });
+
+                                    invoker.invoke(
+                                            context,
+                                            stream,
+                                            backendConnection -> {
+                                                final ShadowProxyConnection shadowProxyConnection = new ShadowProxyConnection(backendConnection, shadowConnection);
+
+                                                // Plug underlying stream to connection stream
+                                                stream.bodyHandler(shadowProxyConnection::write).endHandler(aVoid -> shadowProxyConnection.end());
+
+                                                connectionHandler.handle(shadowProxyConnection);
+                                            });
+                                }
+                        );
+            }
+        }
+    }
+
+    private class ShadowProxyConnection implements ProxyConnection {
+        private final ProxyConnection incomingProxyConnection, shadowConnection;
+
+        private ShadowProxyConnection(ProxyConnection incomingProxyConnection, ProxyConnection shadowConnection) {
+            this.incomingProxyConnection = incomingProxyConnection;
+            this.shadowConnection = shadowConnection;
+        }
+
+        @Override
+        public ProxyConnection writeCustomFrame(HttpFrame frame) {
+            incomingProxyConnection.writeCustomFrame(frame);
+            shadowConnection.writeCustomFrame(frame);
+            return this;
+        }
+
+        @Override
+        public ProxyConnection cancel() {
+            incomingProxyConnection.cancel();
+            shadowConnection.cancel();
+            return this;
+        }
+
+        @Override
+        public ProxyConnection cancelHandler(Handler<Void> cancelHandler) {
+            incomingProxyConnection.cancelHandler(cancelHandler);
+            return this;
+        }
+
+        @Override
+        public ProxyConnection exceptionHandler(Handler<Throwable> exceptionHandler) {
+            incomingProxyConnection.exceptionHandler(exceptionHandler);
+            return this;
+        }
+
+        @Override
+        public ProxyConnection responseHandler(Handler<ProxyResponse> responseHandler) {
+            incomingProxyConnection.responseHandler(responseHandler);
+            return this;
+        }
+
+        @Override
+        public WriteStream<Buffer> write(Buffer buffer) {
+            incomingProxyConnection.write(buffer);
+            shadowConnection.write(buffer);
+
+            return this;
+        }
+
+        @Override
+        public void end() {
+            incomingProxyConnection.end();
+            shadowConnection.end();
+        }
+
+        @Override
+        public void end(Buffer buffer) {
+            incomingProxyConnection.end(buffer);
+            shadowConnection.end(buffer);
+        }
+
+        @Override
+        public WriteStream<Buffer> drainHandler(Handler<Void> drainHandler) {
+            incomingProxyConnection.drainHandler(drainHandler);
+            return this;
+        }
+
+        @Override
+        public boolean writeQueueFull() {
+            return incomingProxyConnection.writeQueueFull();
+        }
     }
 
     private HttpHeaders addShadowingHeaders(HttpHeaders headers, ExecutionContext context) {
@@ -89,69 +218,5 @@ public class TrafficShadowingPolicy {
                 });
         }
         return httpHeaders;
-    }
-
-    private static class ShadowingReadWriteStream extends BufferedReadWriteStream {
-
-        ProxyConnection connection;
-
-        List<Buffer> chunkBuffers = new ArrayList<>();
-
-        public ShadowingReadWriteStream(ProxyRequest proxyRequest, ExecutionContext context, ProxyEndpoint endpoint) {
-            endpoint
-                .connector()
-                .request(
-                    proxyRequest,
-                    context,
-                    connection -> {
-                        this.connection = connection;
-
-                        connection.responseHandler(response -> {
-                            LOGGER.debug("Traffic shadowing status is: {}", response.status());
-                        });
-                        connection.exceptionHandler(throwable -> {
-                            LOGGER.error("An error occurs while sending traffic shadowing request", throwable);
-                        });
-                    }
-                );
-        }
-
-        @Override
-        public SimpleReadWriteStream<Buffer> write(Buffer chunk) {
-            if (connection == null) {
-                chunkBuffers.add(chunk);
-            } else {
-                sendPendingChunkBuffers();
-                writeChunk(chunk);
-            }
-
-            return super.write(chunk);
-        }
-
-        private void sendPendingChunkBuffers() {
-            if (!chunkBuffers.isEmpty()) {
-                chunkBuffers.forEach(this::writeChunk);
-                chunkBuffers.clear();
-            }
-        }
-
-        private void writeChunk(Buffer buffer) {
-            connection.write(buffer);
-            if (connection.writeQueueFull()) {
-                pause();
-                connection.drainHandler(aVoid -> resume());
-            }
-        }
-
-        @Override
-        public void end() {
-            if (connection == null) {
-                LOGGER.warn("No connection available to send traffic shadowing request");
-            } else {
-                sendPendingChunkBuffers();
-                connection.end();
-            }
-            super.end();
-        }
     }
 }
