@@ -51,7 +51,11 @@ class TrafficShadowingPolicyIntegrationTest extends AbstractPolicyTest<TrafficSh
             .assertNoErrors();
 
         wiremock.verify(postRequestedFor(urlPathEqualTo("/endpoint")).withRequestBody(equalTo("A request")));
-        wiremock.verify(postRequestedFor(urlPathEqualTo("/shadow-endpoint")).withHeader("Custom-Request-Id-Header", containing("id-")).withRequestBody(equalTo("A request")));
+        wiremock.verify(
+            postRequestedFor(urlPathEqualTo("/shadow-endpoint"))
+                .withHeader("Custom-Request-Id-Header", containing("id-"))
+                .withRequestBody(equalTo("A request"))
+        );
     }
 
     @Test
@@ -62,16 +66,16 @@ class TrafficShadowingPolicyIntegrationTest extends AbstractPolicyTest<TrafficSh
         wiremock.stubFor(post("/shadow-endpoint").willReturn(ok()));
 
         httpClient
-                .rxRequest(HttpMethod.POST, "/test")
-                .flatMap(httpClientRequest -> httpClientRequest.rxSend("A request"))
-                .test()
-                .await()
-                .assertComplete()
-                .assertValue(response -> {
-                    assertThat(response.statusCode()).isEqualTo(200);
-                    return true;
-                })
-                .assertNoErrors();
+            .rxRequest(HttpMethod.POST, "/test")
+            .flatMap(httpClientRequest -> httpClientRequest.rxSend("A request"))
+            .test()
+            .await()
+            .assertComplete()
+            .assertValue(response -> {
+                assertThat(response.statusCode()).isEqualTo(200);
+                return true;
+            })
+            .assertNoErrors();
 
         wiremock.verify(postRequestedFor(urlPathEqualTo("/endpoint")).withRequestBody(equalTo("A request")));
     }
