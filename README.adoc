@@ -31,9 +31,7 @@ Traffic shadowing allows to asynchronously copy the traffic to another service. 
 
 |===
 | Plugin version | APIM version
-
-| 2.x and upper  | 3.18.20, 3.19.9, 3.20.3 and upper.
-| Up to 1.1.x    | Up to 3.14.x
+| 2.x and upper  | 3.19.9, 3.20.3 and upper
 |===
 
 == Configuration
