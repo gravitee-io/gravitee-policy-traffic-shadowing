@@ -1,3 +1,10 @@
+## [2.0.1](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/compare/2.0.0...2.0.1) (2023-07-20)
+
+
+### Bug Fixes
+
+* update policy description ([022e4e9](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/commit/022e4e9b8ca8647fd1e83abf9635d2ceb24af98e))
+
 # [2.0.0](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/compare/1.1.0...2.0.0) (2023-03-09)
 
 
