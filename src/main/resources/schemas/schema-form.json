@@ -1,46 +1,41 @@
 {
-  "type": "object",
-  "id": "urn:jsonschema:io:gravitee:policy:trafficshadowing:configuration:TrafficShadowingPolicy",
-  "properties": {
-    "target" : {
-      "title": "Target",
-      "description": "Target",
-      "type" : "string",
-      "x-schema-form": {
-        "expression-language": true
-      }
-    },
-    "headers" : {
-      "type" : "array",
-      "title": "Add / update headers",
-      "items" : {
-        "type" : "object",
-        "id" : "urn:jsonschema:io:gravitee:policy:trafficshadowing:configuration:HttpHeader",
-        "title": "Header",
-        "properties" : {
-          "name" : {
-            "title": "Name",
-            "description": "Name of the header",
-            "type" : "string",
-            "pattern" : "^\\S*$",
-            "validationMessage": {
-              "202": "Header name must not contain spaces."
+    "type": "object",
+    "id": "urn:jsonschema:io:gravitee:policy:trafficshadowing:configuration:TrafficShadowingPolicy",
+    "properties": {
+        "target": {
+            "title": "Target",
+            "description": "Target",
+            "type": "string",
+            "x-schema-form": {
+                "expression-language": true
             }
-          },
-          "value" : {
-            "title": "Value",
-            "description": "Value of the header",
-            "type" : "string"
-          }
         },
-        "required": [
-          "name",
-          "value"
-        ]
-      }
-    }
-  },
-  "required": [
-    "target"
-  ]
+        "headers": {
+            "type": "array",
+            "title": "Add / update headers",
+            "items": {
+                "type": "object",
+                "id": "urn:jsonschema:io:gravitee:policy:trafficshadowing:configuration:HttpHeader",
+                "title": "Header",
+                "properties": {
+                    "name": {
+                        "title": "Name",
+                        "description": "Name of the header",
+                        "type": "string",
+                        "pattern": "^\\S*$",
+                        "validationMessage": {
+                            "202": "Header name must not contain spaces."
+                        }
+                    },
+                    "value": {
+                        "title": "Value",
+                        "description": "Value of the header",
+                        "type": "string"
+                    }
+                },
+                "required": ["name", "value"]
+            }
+        }
+    },
+    "required": ["target"]
 }
