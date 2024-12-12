@@ -1,11 +1,11 @@
-/**
- * Copyright (C) 2015 The Gravitee team (http://gravitee.io)
+/*
+ * Copyright © 2015 The Gravitee team (http://gravitee.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *         http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,7 +15,12 @@
  */
 package io.gravitee.policy.trafficshadowing;
 
-import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static com.github.tomakehurst.wiremock.client.WireMock.containing;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.ok;
+import static com.github.tomakehurst.wiremock.client.WireMock.post;
+import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.gravitee.apim.gateway.tests.sdk.AbstractPolicyTest;
@@ -24,17 +29,17 @@ import io.gravitee.apim.gateway.tests.sdk.annotations.GatewayTest;
 import io.gravitee.policy.trafficshadowing.configuration.TrafficShadowingPolicyConfiguration;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.rxjava3.core.http.HttpClient;
-import io.vertx.rxjava3.core.http.HttpClientRequest;
-import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.DisplayNameGeneration;
+import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
 
 @GatewayTest
+@DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
 class TrafficShadowingPolicyIntegrationTest extends AbstractPolicyTest<TrafficShadowingPolicy, TrafficShadowingPolicyConfiguration> {
 
     @Test
-    @DisplayName("Should shadow request to another endpoint")
     @DeployApi("/apis/traffic-shadowing.json")
-    void shouldTransformAndAddHeadersOnRequestContent(HttpClient httpClient) throws InterruptedException {
+    void should_transform_and_add_headers_on_request_content(HttpClient httpClient) throws InterruptedException {
         wiremock.stubFor(post("/endpoint").willReturn(ok()));
         wiremock.stubFor(post("/shadow-endpoint").willReturn(ok()));
 
@@ -59,9 +64,8 @@ class TrafficShadowingPolicyIntegrationTest extends AbstractPolicyTest<TrafficSh
     }
 
     @Test
-    @DisplayName("Should not shadow request to an invalid endpoint")
     @DeployApi("/apis/traffic-shadowing-bad-endpoint.json")
-    void shouldCallDefaultEndpoint(HttpClient httpClient) throws InterruptedException {
+    void should_ignore_invalid_shadowing_endpoint_and_call_standard_endpoint(HttpClient httpClient) throws InterruptedException {
         wiremock.stubFor(post("/endpoint").willReturn(ok()));
         wiremock.stubFor(post("/shadow-endpoint").willReturn(ok()));
 
@@ -78,5 +82,6 @@ class TrafficShadowingPolicyIntegrationTest extends AbstractPolicyTest<TrafficSh
             .assertNoErrors();
 
         wiremock.verify(postRequestedFor(urlPathEqualTo("/endpoint")).withRequestBody(equalTo("A request")));
+        wiremock.verify(0, postRequestedFor(urlPathEqualTo("/shadow-endpoint")).withRequestBody(equalTo("A request")));
     }
 }
