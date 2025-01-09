@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.gravitee.policy.trafficshadowing.invoker;
+package io.gravitee.policy.trafficshadowing.v3.invoker;
 
 import io.gravitee.gateway.api.Connector;
 import io.gravitee.gateway.api.Request;

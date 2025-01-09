@@ -15,30 +15,25 @@
  */
 package io.gravitee.policy.trafficshadowing;
 
-import io.gravitee.gateway.api.ExecutionContext;
-import io.gravitee.gateway.api.Invoker;
-import io.gravitee.policy.api.PolicyChain;
-import io.gravitee.policy.api.annotations.OnRequest;
+import io.gravitee.gateway.reactive.api.context.http.HttpPlainExecutionContext;
+import io.gravitee.gateway.reactive.api.policy.http.HttpPolicy;
 import io.gravitee.policy.trafficshadowing.configuration.TrafficShadowingPolicyConfiguration;
-import io.gravitee.policy.trafficshadowing.invoker.ShadowInvoker;
+import io.gravitee.policy.trafficshadowing.v3.TrafficShadowingPolicyV3;
+import io.reactivex.rxjava3.core.Completable;
 
-/**
- * @author David BRASSELY (david.brassely at graviteesource.com)
- * @author GraviteeSource Team
- */
-public class TrafficShadowingPolicy {
-
-    private final TrafficShadowingPolicyConfiguration configuration;
+public class TrafficShadowingPolicy extends TrafficShadowingPolicyV3 implements HttpPolicy {
 
     public TrafficShadowingPolicy(final TrafficShadowingPolicyConfiguration configuration) {
-        this.configuration = configuration;
+        super(configuration);
     }
 
-    @OnRequest
-    public void onRequest(ExecutionContext context, PolicyChain chain) {
-        // Override the invoker
-        Invoker defaultInvoker = (Invoker) context.getAttribute(ExecutionContext.ATTR_INVOKER);
-        context.setAttribute(ExecutionContext.ATTR_INVOKER, new ShadowInvoker(defaultInvoker, configuration));
-        chain.doNext(context.request(), context.response());
+    @Override
+    public String id() {
+        return "traffic-shadowing";
+    }
+
+    @Override
+    public Completable onRequest(HttpPlainExecutionContext ctx) {
+        return HttpPolicy.super.onRequest(ctx);
     }
 }
