@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.gravitee.policy.trafficshadowing.v3;
+package io.gravitee.policy.trafficshadowing;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
@@ -23,21 +23,15 @@ import static com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.gravitee.apim.gateway.tests.sdk.AbstractPolicyTest;
 import io.gravitee.apim.gateway.tests.sdk.annotations.DeployApi;
 import io.gravitee.apim.gateway.tests.sdk.annotations.GatewayTest;
 import io.gravitee.definition.model.ExecutionMode;
-import io.gravitee.policy.trafficshadowing.TrafficShadowingPolicy;
-import io.gravitee.policy.trafficshadowing.configuration.TrafficShadowingPolicyConfiguration;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.rxjava3.core.http.HttpClient;
-import org.junit.jupiter.api.DisplayNameGeneration;
-import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
 
 @GatewayTest(v2ExecutionMode = ExecutionMode.V3)
-@DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
-class TrafficShadowingPolicyV3EngineIntegrationTest extends AbstractPolicyTest<TrafficShadowingPolicy, TrafficShadowingPolicyConfiguration> {
+class TrafficShadowingPolicyV3EngineIntegrationTest extends V3EngineTest {
 
     @Test
     @DeployApi("/apis/v2/traffic-shadowing.json")
@@ -46,7 +40,7 @@ class TrafficShadowingPolicyV3EngineIntegrationTest extends AbstractPolicyTest<T
         wiremock.stubFor(post("/shadow-endpoint").willReturn(ok()));
 
         httpClient
-            .rxRequest(HttpMethod.POST, "/test")
+            .rxRequest(HttpMethod.POST, "/v2")
             .flatMap(httpClientRequest -> httpClientRequest.rxSend("A request"))
             .test()
             .await()
@@ -72,7 +66,7 @@ class TrafficShadowingPolicyV3EngineIntegrationTest extends AbstractPolicyTest<T
         wiremock.stubFor(post("/shadow-endpoint").willReturn(ok()));
 
         httpClient
-            .rxRequest(HttpMethod.POST, "/test")
+            .rxRequest(HttpMethod.POST, "/v2-shadow-ko")
             .flatMap(httpClientRequest -> httpClientRequest.rxSend("A request"))
             .test()
             .await()

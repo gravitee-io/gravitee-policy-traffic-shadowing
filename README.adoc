@@ -9,6 +9,8 @@ endif::[]
 
 == Phase
 
+=== V3 engine
+
 [cols="4*", options="header"]
 |===
 ^|onRequest
@@ -23,6 +25,24 @@ endif::[]
 
 |===
 
+=== V4 engine
+
+[cols="4*", options="header"]
+|===
+^|onRequest
+^|onResponse
+^|onMessageRequest
+^|onMessageResponse
+
+^.^| X
+^.^| -
+^.^| -
+^.^| -
+
+|===
+
+
+
 == Description
 
 Traffic shadowing allows to asynchronously copy the traffic to another service. By using this policy, the requests are duplicated and sent to the target. The target is an endpoint defined at the API level. The request can be enriched with additional headers.
@@ -31,7 +51,8 @@ Traffic shadowing allows to asynchronously copy the traffic to another service. 
 
 |===
 | Plugin version | APIM version
-| 2.x and upper  | 3.19.9, 3.20.3 and upper
+| 2.x            | 4.0 to 4.5
+| 3.x            | 4.6 and upper
 |===
 
 == Configuration
