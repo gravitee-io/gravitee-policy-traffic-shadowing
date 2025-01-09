@@ -1,9 +1,9 @@
 {
-    "id": "my-api",
-    "name": "my-api",
+    "id": "my-api-v2",
+    "name": "my-api-v2",
     "gravitee": "2.0.0",
     "proxy": {
-        "context_path": "/test",
+        "context_path": "/v2",
         "endpoints": [
             {
                 "name": "default",
@@ -26,7 +26,7 @@
     "flows": [
         {
             "name": "flow-1",
-            "methods": ["POST"],
+            "methods": ["GET", "POST"],
             "enabled": true,
             "path-operator": {
                 "path": "/",
