@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.gravitee.policy.trafficshadowing;
+package io.gravitee.policy.trafficshadowing.v3;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.containing;
 import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
@@ -26,6 +26,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.gravitee.apim.gateway.tests.sdk.AbstractPolicyTest;
 import io.gravitee.apim.gateway.tests.sdk.annotations.DeployApi;
 import io.gravitee.apim.gateway.tests.sdk.annotations.GatewayTest;
+import io.gravitee.definition.model.ExecutionMode;
+import io.gravitee.policy.trafficshadowing.TrafficShadowingPolicy;
 import io.gravitee.policy.trafficshadowing.configuration.TrafficShadowingPolicyConfiguration;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.rxjava3.core.http.HttpClient;
@@ -33,12 +35,12 @@ import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.DisplayNameGenerator;
 import org.junit.jupiter.api.Test;
 
-@GatewayTest
+@GatewayTest(v2ExecutionMode = ExecutionMode.V3)
 @DisplayNameGeneration(DisplayNameGenerator.ReplaceUnderscores.class)
-class TrafficShadowingPolicyIntegrationTest extends AbstractPolicyTest<TrafficShadowingPolicy, TrafficShadowingPolicyConfiguration> {
+class TrafficShadowingPolicyV3EngineIntegrationTest extends AbstractPolicyTest<TrafficShadowingPolicy, TrafficShadowingPolicyConfiguration> {
 
     @Test
-    @DeployApi("/apis/traffic-shadowing.json")
+    @DeployApi("/apis/v2/traffic-shadowing.json")
     void should_transform_and_add_headers_on_request_content(HttpClient httpClient) throws InterruptedException {
         wiremock.stubFor(post("/endpoint").willReturn(ok()));
         wiremock.stubFor(post("/shadow-endpoint").willReturn(ok()));
@@ -64,7 +66,7 @@ class TrafficShadowingPolicyIntegrationTest extends AbstractPolicyTest<TrafficSh
     }
 
     @Test
-    @DeployApi("/apis/traffic-shadowing-bad-endpoint.json")
+    @DeployApi("/apis/v2/traffic-shadowing-bad-endpoint.json")
     void should_ignore_invalid_shadowing_endpoint_and_call_standard_endpoint(HttpClient httpClient) throws InterruptedException {
         wiremock.stubFor(post("/endpoint").willReturn(ok()));
         wiremock.stubFor(post("/shadow-endpoint").willReturn(ok()));
