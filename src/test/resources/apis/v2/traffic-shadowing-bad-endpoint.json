@@ -1,9 +1,9 @@
 {
-    "id": "my-api",
-    "name": "my-api",
+    "id": "my-api-v2-shadow-ko",
+    "name": "my-api-v2-shadow-ko",
     "gravitee": "2.0.0",
     "proxy": {
-        "context_path": "/test",
+        "context_path": "/v2-shadow-ko",
         "endpoints": [
             {
                 "name": "default",

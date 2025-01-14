@@ -15,12 +15,18 @@
  */
 package io.gravitee.policy.trafficshadowing;
 
+import io.gravitee.gateway.reactive.api.context.InternalContextAttributes;
 import io.gravitee.gateway.reactive.api.context.http.HttpPlainExecutionContext;
+import io.gravitee.gateway.reactive.api.invoker.HttpInvoker;
 import io.gravitee.gateway.reactive.api.policy.http.HttpPolicy;
+import io.gravitee.gateway.reactive.handlers.api.adapter.invoker.InvokerAdapter;
 import io.gravitee.policy.trafficshadowing.configuration.TrafficShadowingPolicyConfiguration;
+import io.gravitee.policy.trafficshadowing.invoker.ShadowInvoker;
 import io.gravitee.policy.trafficshadowing.v3.TrafficShadowingPolicyV3;
 import io.reactivex.rxjava3.core.Completable;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class TrafficShadowingPolicy extends TrafficShadowingPolicyV3 implements HttpPolicy {
 
     public TrafficShadowingPolicy(final TrafficShadowingPolicyConfiguration configuration) {
@@ -34,6 +40,15 @@ public class TrafficShadowingPolicy extends TrafficShadowingPolicyV3 implements 
 
     @Override
     public Completable onRequest(HttpPlainExecutionContext ctx) {
-        return HttpPolicy.super.onRequest(ctx);
+        return Completable.defer(() -> {
+            log.debug("Prepare Traffic Shadowing");
+
+            HttpInvoker defaultInvoker = ctx.getInternalAttribute(InternalContextAttributes.ATTR_INTERNAL_INVOKER);
+            var shadowInvoker = defaultInvoker instanceof InvokerAdapter invokerAdapter
+                ? new io.gravitee.policy.trafficshadowing.v3.invoker.ShadowInvoker(new InvokerAdapter(invokerAdapter), configuration)
+                : new ShadowInvoker(defaultInvoker, configuration);
+            ctx.setInternalAttribute(InternalContextAttributes.ATTR_INTERNAL_INVOKER, shadowInvoker);
+            return Completable.complete();
+        });
     }
 }

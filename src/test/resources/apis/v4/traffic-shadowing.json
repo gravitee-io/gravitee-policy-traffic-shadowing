@@ -1,0 +1,89 @@
+{
+    "id": "my-api-v4",
+    "name": "my-api-v4",
+    "apiVersion": "1.0",
+    "definitionVersion": "4.0.0",
+    "type": "proxy",
+    "analytics": {
+        "enabled": false
+    },
+    "listeners": [
+        {
+            "type": "http",
+            "paths": [
+                {
+                    "path": "/v4"
+                }
+            ],
+            "entrypoints": [
+                {
+                    "type": "http-proxy"
+                }
+            ]
+        }
+    ],
+    "endpointGroups": [
+        {
+            "name": "default",
+            "type": "http-proxy",
+            "endpoints": [
+                {
+                    "name": "default",
+                    "type": "http-proxy",
+                    "weight": 1,
+                    "inheritConfiguration": false,
+                    "configuration": {
+                        "target": "http://localhost:8080/endpoint"
+                    }
+                }
+            ]
+        },
+        {
+            "name": "shadowGroup",
+            "type": "http-proxy",
+            "endpoints": [
+                {
+                    "name": "shadow",
+                    "type": "http-proxy",
+                    "weight": 1,
+                    "inheritConfiguration": false,
+                    "configuration": {
+                        "target": "http://localhost:8080/shadow-endpoint"
+                    }
+                }
+            ]
+        }
+    ],
+    "flows": [
+        {
+            "name": "flow-1",
+            "enabled": true,
+            "selectors": [
+                {
+                    "type": "http",
+                    "path": "/",
+                    "pathOperator": "STARTS_WITH"
+                }
+            ],
+            "request": [
+                {
+                    "name": "Traffic Shadowing",
+                    "enabled": true,
+                    "policy": "traffic-shadowing",
+                    "configuration": {
+                        "headers": [
+                            {
+                                "name": "Custom-Request-Id-Header",
+                                "value": "id-{#request.id}"
+                            }
+                        ],
+                        "target": "shadow"
+                    }
+                }
+            ],
+            "response": [],
+            "subscribe": [],
+            "publish": []
+        }
+    ]
+}
