@@ -35,7 +35,7 @@
     </parent>
 
     <properties>
-        <gravitee-apim-bom.version>4.6.0-SNAPSHOT</gravitee-apim-bom.version>
+        <gravitee-apim-bom.version>4.6.0</gravitee-apim-bom.version>
 
         <maven-assembly-plugin.version>3.7.1</maven-assembly-plugin.version>
         <prettier-maven-plugin.version>0.22</prettier-maven-plugin.version>
