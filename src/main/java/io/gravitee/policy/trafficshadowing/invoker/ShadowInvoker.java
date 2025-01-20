@@ -17,125 +17,142 @@ package io.gravitee.policy.trafficshadowing.invoker;
 
 import static org.springframework.util.StringUtils.hasText;
 
+import com.google.api.Http;
 import io.gravitee.gateway.api.ExecutionContext;
-import io.gravitee.gateway.api.Invoker;
 import io.gravitee.gateway.api.buffer.Buffer;
-import io.gravitee.gateway.api.endpoint.resolver.EndpointResolver;
-import io.gravitee.gateway.api.endpoint.resolver.ProxyEndpoint;
-import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.http.HttpHeaders;
-import io.gravitee.gateway.api.proxy.ProxyConnection;
-import io.gravitee.gateway.api.proxy.ProxyRequest;
-import io.gravitee.gateway.api.stream.ReadStream;
+import io.gravitee.gateway.reactive.api.connector.endpoint.HttpEndpointConnector;
+import io.gravitee.gateway.reactive.api.context.http.HttpExecutionContext;
+import io.gravitee.gateway.reactive.api.invoker.HttpInvoker;
+import io.gravitee.gateway.reactive.core.v4.endpoint.EndpointCriteria;
+import io.gravitee.gateway.reactive.core.v4.endpoint.EndpointManager;
+import io.gravitee.gateway.reactive.core.v4.endpoint.ManagedEndpoint;
 import io.gravitee.policy.trafficshadowing.configuration.HttpHeader;
 import io.gravitee.policy.trafficshadowing.configuration.TrafficShadowingPolicyConfiguration;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.processors.UnicastProcessor;
+import io.vertx.core.Vertx;
+import lombok.extern.slf4j.Slf4j;
 
-/**
- * @author GraviteeSource Team
- */
-public class ShadowInvoker implements Invoker {
+@Slf4j
+public class ShadowInvoker implements HttpInvoker {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(ShadowInvoker.class);
-
-    private final Invoker invoker;
+    private final HttpInvoker defaultInvoker;
     private final TrafficShadowingPolicyConfiguration configuration;
 
-    public ShadowInvoker(Invoker invoker, TrafficShadowingPolicyConfiguration configuration) {
-        this.invoker = invoker;
+    public ShadowInvoker(HttpInvoker defaultInvoker, TrafficShadowingPolicyConfiguration configuration) {
+        this.defaultInvoker = defaultInvoker;
         this.configuration = configuration;
     }
 
     @Override
-    public void invoke(ExecutionContext context, ReadStream<Buffer> stream, Handler<ProxyConnection> connectionHandler) {
-        final EndpointResolver endpointResolver = context.getComponent(EndpointResolver.class);
-
-        String configurationTarget = configuration.getTarget();
-        String target = context.getTemplateEngine().convert(configurationTarget);
-        ProxyEndpoint endpoint = endpointResolver.resolve(target);
-
-        if (endpoint == null) {
-            // No shadow endpoint resolved, keep continuing with standard endpoint.
-            invoker.invoke(context, stream, connectionHandler);
-        } else {
-            invoke(context, stream, connectionHandler, endpoint);
-        }
+    public String getId() {
+        return "shadow-invoker";
     }
 
-    private void invoke(
-        ExecutionContext context,
-        ReadStream<Buffer> stream,
-        Handler<ProxyConnection> connectionHandler,
-        ProxyEndpoint endpoint
-    ) {
-        final HttpHeaders shadowHeaders = addConfigHeaders(context.request().headers(), context);
-        final ProxyRequest shadowRequest = endpoint.createProxyRequest(
-            context.request(),
-            proxyRequestBuilder -> proxyRequestBuilder.headers(shadowHeaders)
+    @Override
+    public Completable invoke(HttpExecutionContext ctx) {
+        var endpoint = getShadowEndpoint(ctx);
+        if (endpoint == null) {
+            log.info("No shadow endpoint found for target: {}", configuration.getTarget());
+            return defaultInvoker.invoke(ctx);
+        }
+        log.debug("Shadowing request to endpoint: {}", endpoint.getDefinition().getName());
+
+        var requestChunkProcessor = UnicastProcessor.<Buffer>create(
+            UnicastProcessor.bufferSize(),
+            () -> log.debug("Shadow request chunk processor terminated")
         );
 
-        endpoint
-            .connector()
-            .request(
-                shadowRequest,
-                context,
-                shadowConnection -> {
-                    shadowConnection.responseHandler(response -> {
-                        LOGGER.debug("Traffic shadowing status is: {}", response.status());
-
-                        response.bodyHandler(noop -> {}).endHandler(noop -> {});
-
-                        // Resume the shadow response to read the stream and mark as ended
-                        response.resume();
-                    });
-
-                    shadowConnection.exceptionHandler(throwable ->
-                        LOGGER.error("An error occurs while sending traffic shadowing request", throwable)
-                    );
-
-                    invoker.invoke(
-                        context,
-                        stream,
-                        backendConnection -> {
-                            final ShadowProxyConnection shadowProxyConnection = new ShadowProxyConnection(
-                                backendConnection,
-                                shadowConnection
-                            );
-
-                            // Plug underlying stream to connection stream
-                            stream.bodyHandler(shadowProxyConnection::write);
-                            stream.endHandler(aVoid -> shadowProxyConnection.end());
-
-                            connectionHandler.handle(shadowProxyConnection);
+        ctx
+            .request()
+            .chunks(
+                ctx
+                    .request()
+                    .chunks()
+                    .doOnEach(event -> {
+                        try {
+                            if (event.isOnNext()) {
+                                requestChunkProcessor.onNext(event.getValue());
+                            } else if (event.isOnError()) {
+                                requestChunkProcessor.onError(event.getError());
+                            } else if (event.isOnComplete()) {
+                                requestChunkProcessor.onComplete();
+                            }
+                        } catch (Exception e) {
+                            // Should not happen but just in case
+                            log.error("Forwarding request chunk to shadow failed", e);
                         }
-                    );
-                }
+                    })
             );
+        ShadowHttpExecutionContext shadowCtx = new ShadowHttpExecutionContext(ctx, prepareShadowRequest(ctx, requestChunkProcessor));
+
+        HttpEndpointConnector connector = endpoint.getConnector();
+        return Completable
+            .mergeArray(
+                defaultInvoker.invoke(ctx),
+                connector
+                    .connect(shadowCtx)
+                    .andThen(
+                        Completable.defer(() ->
+                            shadowCtx
+                                .response()
+                                .end(shadowCtx)
+                                .doOnComplete(() -> {
+                                    log.debug("Traffic shadowing status is: {}", shadowCtx.response().status());
+                                })
+                        )
+                    )
+                    .doOnError(throwable -> log.error("An error occurred while connecting to shadow endpoint", throwable))
+                    .doOnDispose(() -> log.debug("Shadow connection disposed"))
+                    .onErrorComplete()
+            )
+            .doFinally(() -> {
+                // UniCasProcessor should complete when request chunks flowable complete, the following line is a safety net
+                if (!requestChunkProcessor.hasComplete()) {
+                    requestChunkProcessor.onComplete();
+                }
+            });
     }
 
-    private HttpHeaders addConfigHeaders(HttpHeaders headers, ExecutionContext context) {
-        HttpHeaders shadowHeaders = HttpHeaders.create(headers);
+    private ManagedEndpoint getShadowEndpoint(HttpExecutionContext ctx) {
+        var target = ctx.getTemplateEngine().evalNow(configuration.getTarget(), String.class);
+
+        var endpointManager = ctx.getComponent(EndpointManager.class);
+        var endpointCriteria = new EndpointCriteria();
+        endpointCriteria.setName(target);
+
+        return endpointManager.next(endpointCriteria);
+    }
+
+    private ShadowRequest prepareShadowRequest(HttpExecutionContext ctx, UnicastProcessor<Buffer> requestChunkProcessor) {
+        var shadowRequest = new ShadowRequest(ctx.request(), requestChunkProcessor);
+        shadowRequest.headers(handleConfigHeader(ctx));
+        return shadowRequest;
+    }
+
+    private HttpHeaders handleConfigHeader(HttpExecutionContext ctx) {
+        var shadowHeaders = HttpHeaders.create(ctx.request().headers());
         if (configuration.getHeaders() != null) {
-            configuration.getHeaders().forEach(header -> addConfigHeader(context, shadowHeaders, header));
+            configuration.getHeaders().forEach(configHeader -> addConfigHeader(ctx, shadowHeaders, configHeader));
         }
         return shadowHeaders;
     }
 
-    private void addConfigHeader(ExecutionContext context, HttpHeaders headers, HttpHeader header) {
+    private void addConfigHeader(HttpExecutionContext ctx, HttpHeaders headers, HttpHeader header) {
         try {
             if (!hasText(header.getName())) {
-                LOGGER.debug("Shadowing header name is empty. The header will not be added to the request");
+                log.debug("Shadowed request header name is empty. The header will not be added to the request");
                 return;
             }
-            String value = context.getTemplateEngine().convert(header.getValue());
+            String value = ctx.getTemplateEngine().evalNow(header.getValue(), String.class);
             if (!hasText(value)) {
-                LOGGER.debug("Shadowing header value is empty. The header will not be added to the request");
+                log.debug("Shadowed request header {} value is empty. The header will not be added to the request", header.getName());
                 return;
             }
             headers.set(header.getName(), value);
         } catch (Exception e) {
-            LOGGER.debug("Shadowing header raised an error. The header will not be added to the request", e);
+            log.debug("Shadowed request header raised an error. The header will not be added to the request", e);
         }
     }
 }
