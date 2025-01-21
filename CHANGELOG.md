@@ -1,3 +1,15 @@
+# [3.0.0](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/compare/2.0.2...3.0.0) (2025-01-21)
+
+
+### Features
+
+* support reactive engine ([4267b79](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/commit/4267b7976c062e20db76a98b7c9e106a6386f405))
+
+
+### BREAKING CHANGES
+
+* require at least APIM 4.6
+
 ## [2.0.2](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/compare/2.0.1...2.0.2) (2024-12-12)
 
 
