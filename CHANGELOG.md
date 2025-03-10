@@ -1,3 +1,15 @@
+## [2.0.3](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/compare/2.0.2...2.0.3) (2025-03-10)
+
+
+### Bug Fixes
+
+* some handlers are mandatory before calling invoker ([9b115f1](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/commit/9b115f1f9c587841c80f2c7ba6b563f6de708876))
+
+
+### Reverts
+
+* Revert "fix: some handlers are mandatory before calling invoker" ([3c6efb5](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/commit/3c6efb5afd2c804db3a153c29019405a4c8526e3))
+
 ## [2.0.2](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/compare/2.0.1...2.0.2) (2024-12-12)
 
 
