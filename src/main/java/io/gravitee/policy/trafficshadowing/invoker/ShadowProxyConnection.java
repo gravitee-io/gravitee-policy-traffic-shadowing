@@ -1,11 +1,11 @@
-/*
- * Copyright © 2015 The Gravitee team (http://gravitee.io)
+/**
+ * Copyright (C) 2015 The Gravitee team (http://gravitee.io)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *         http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,15 +21,33 @@ import io.gravitee.gateway.api.http2.HttpFrame;
 import io.gravitee.gateway.api.proxy.ProxyConnection;
 import io.gravitee.gateway.api.proxy.ProxyResponse;
 import io.gravitee.gateway.api.stream.WriteStream;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-@RequiredArgsConstructor
 public class ShadowProxyConnection implements ProxyConnection {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ShadowProxyConnection.class);
 
     private final ProxyConnection incomingProxyConnection;
     private final ProxyConnection shadowConnection;
+
+    public ShadowProxyConnection(ProxyConnection incomingProxyConnection, ProxyConnection shadowConnection) {
+        this.incomingProxyConnection = incomingProxyConnection;
+        this.shadowConnection = shadowConnection;
+
+        shadowConnection.responseHandler(response -> {
+            LOGGER.debug("Traffic shadowing status is: {}", response.status());
+
+            response.bodyHandler(noop -> {}).endHandler(noop -> {});
+
+            // Resume the shadow response to read the stream and mark as ended
+            response.resume();
+        });
+
+        shadowConnection.exceptionHandler(throwable -> {
+            LOGGER.error("An error occurs while sending traffic shadowing request", throwable);
+        });
+    }
 
     @Override
     public ProxyConnection writeCustomFrame(HttpFrame frame) {

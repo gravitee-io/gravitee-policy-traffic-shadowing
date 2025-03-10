@@ -1,13 +1,13 @@
 {
-    "target": "target_endpoint",
-    "headers": [
-        {
-            "name": "X-Gravitee-Header-Test",
-            "value": "Value"
-        },
-        {
-            "name": "X-Gravitee-Second-Header-Test",
-            "value": "Value"
-        }
-    ]
+  "target": "target_endpoint",
+  "headers": [
+    {
+      "name": "X-Gravitee-Header-Test",
+      "value": "Value"
+    },
+    {
+      "name": "X-Gravitee-Second-Header-Test",
+      "value": "Value"
+    }
+  ]
 }
