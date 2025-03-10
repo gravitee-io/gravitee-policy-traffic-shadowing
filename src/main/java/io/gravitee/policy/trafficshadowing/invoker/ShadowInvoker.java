@@ -80,7 +80,20 @@ public class ShadowInvoker implements Invoker {
             .request(
                 shadowRequest,
                 context,
-                shadowConnection ->
+                shadowConnection -> {
+                    shadowConnection.responseHandler(response -> {
+                        LOGGER.debug("Traffic shadowing status is: {}", response.status());
+
+                        response.bodyHandler(noop -> {}).endHandler(noop -> {});
+
+                        // Resume the shadow response to read the stream and mark as ended
+                        response.resume();
+                    });
+
+                    shadowConnection.exceptionHandler(throwable ->
+                        LOGGER.error("An error occurs while sending traffic shadowing request", throwable)
+                    );
+
                     invoker.invoke(
                         context,
                         stream,
@@ -96,7 +109,8 @@ public class ShadowInvoker implements Invoker {
 
                             connectionHandler.handle(shadowProxyConnection);
                         }
-                    )
+                    );
+                }
             );
     }
 

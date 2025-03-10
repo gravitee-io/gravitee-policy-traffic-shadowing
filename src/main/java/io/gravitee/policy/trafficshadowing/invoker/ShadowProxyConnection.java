@@ -34,19 +34,6 @@ public class ShadowProxyConnection implements ProxyConnection {
     public ShadowProxyConnection(ProxyConnection incomingProxyConnection, ProxyConnection shadowConnection) {
         this.incomingProxyConnection = incomingProxyConnection;
         this.shadowConnection = shadowConnection;
-
-        shadowConnection.responseHandler(response -> {
-            LOGGER.debug("Traffic shadowing status is: {}", response.status());
-
-            response.bodyHandler(noop -> {}).endHandler(noop -> {});
-
-            // Resume the shadow response to read the stream and mark as ended
-            response.resume();
-        });
-
-        shadowConnection.exceptionHandler(throwable -> {
-            LOGGER.error("An error occurs while sending traffic shadowing request", throwable);
-        });
     }
 
     @Override
