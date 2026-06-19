@@ -1,3 +1,10 @@
+## [3.0.1](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/compare/3.0.0...3.0.1) (2026-06-19)
+
+
+### Bug Fixes
+
+* prevent dynamic routing attributes from leaking into shadow context ([0a8822b](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/commit/0a8822b9f1d8253489cbe0599efdc2d7b641cf16))
+
 # [3.0.0](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/compare/2.0.2...3.0.0) (2025-01-21)
 
 
