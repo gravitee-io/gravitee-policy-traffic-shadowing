@@ -18,6 +18,7 @@ package io.gravitee.policy.trafficshadowing.invoker;
 import io.gravitee.el.TemplateEngine;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.reactive.api.ExecutionFailure;
+import io.gravitee.gateway.reactive.api.context.ContextAttributes;
 import io.gravitee.gateway.reactive.api.context.TlsSession;
 import io.gravitee.gateway.reactive.api.context.http.HttpExecutionContext;
 import io.gravitee.gateway.reactive.api.context.http.HttpRequest;
@@ -32,8 +33,19 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class ShadowHttpExecutionContext implements HttpExecutionContext {
+
+    /**
+     * Routing attributes set by policies such as Dynamic Routing. These must not leak into the
+     * shadow context, otherwise the shadow endpoint connector would follow the dynamic route
+     * instead of using its own configured endpoint.
+     */
+    private static final Set<String> ROUTING_ATTRIBUTES = Set.of(
+        ContextAttributes.ATTR_REQUEST_ENDPOINT,
+        ContextAttributes.ATTR_REQUEST_ENDPOINT_OVERRIDE
+    );
 
     private final HttpExecutionContext incomingContext;
     private final ShadowResponse response;
@@ -121,22 +133,34 @@ public class ShadowHttpExecutionContext implements HttpExecutionContext {
 
     @Override
     public <T> T getAttribute(String s) {
+        if (ROUTING_ATTRIBUTES.contains(s)) {
+            return null;
+        }
         return incomingContext.getAttribute(s);
     }
 
     @Override
     public <T> List<T> getAttributeAsList(String s) {
+        if (ROUTING_ATTRIBUTES.contains(s)) {
+            return List.of();
+        }
         return incomingContext.getAttributeAsList(s);
     }
 
     @Override
     public Set<String> getAttributeNames() {
-        return incomingContext.getAttributeNames();
+        return incomingContext
+            .getAttributeNames()
+            .stream()
+            .filter(name -> !ROUTING_ATTRIBUTES.contains(name))
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     @Override
     public <T> Map<String, T> getAttributes() {
-        return Collections.unmodifiableMap(incomingContext.getAttributes());
+        Map<String, T> attributes = new java.util.HashMap<>(incomingContext.getAttributes());
+        attributes.keySet().removeAll(ROUTING_ATTRIBUTES);
+        return Collections.unmodifiableMap(attributes);
     }
 
     @Override
