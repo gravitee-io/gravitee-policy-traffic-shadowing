@@ -1,3 +1,10 @@
+## [3.0.2](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/compare/3.0.1...3.0.2) (2026-06-23)
+
+
+### Bug Fixes
+
+* traffic shadowing does not work with failover for v2 apis ([37f6642](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/commit/37f6642ed0b003e40b749a5e036ac53b90999525))
+
 ## [3.0.1](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/compare/3.0.0...3.0.1) (2026-06-19)
 
 
