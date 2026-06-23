@@ -29,6 +29,8 @@ import io.gravitee.gateway.api.proxy.ProxyRequest;
 import io.gravitee.gateway.api.stream.ReadStream;
 import io.gravitee.policy.trafficshadowing.configuration.HttpHeader;
 import io.gravitee.policy.trafficshadowing.configuration.TrafficShadowingPolicyConfiguration;
+import java.util.ArrayList;
+import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,6 +77,43 @@ public class ShadowInvoker implements Invoker {
             proxyRequestBuilder -> proxyRequestBuilder.headers(shadowHeaders)
         );
 
+        // Buffer body chunks so we can replay them to the shadow connection when the inner
+        // invoker (e.g. FailoverInvoker) consumes the stream before our callback fires.
+        final List<Buffer> bodyBuffer = new ArrayList<>();
+        final boolean[] streamEnded = { false };
+
+        final ReadStream<Buffer> recordingStream = new ReadStream<>() {
+            @Override
+            public ReadStream<Buffer> bodyHandler(Handler<Buffer> bodyHandler) {
+                stream.bodyHandler(chunk -> {
+                    bodyBuffer.add(Buffer.buffer(chunk.getBytes()));
+                    if (bodyHandler != null) bodyHandler.handle(chunk);
+                });
+                return this;
+            }
+
+            @Override
+            public ReadStream<Buffer> endHandler(Handler<Void> endHandler) {
+                stream.endHandler(v -> {
+                    streamEnded[0] = true;
+                    if (endHandler != null) endHandler.handle(v);
+                });
+                return this;
+            }
+
+            @Override
+            public ReadStream<Buffer> pause() {
+                stream.pause();
+                return this;
+            }
+
+            @Override
+            public ReadStream<Buffer> resume() {
+                stream.resume();
+                return this;
+            }
+        };
+
         endpoint
             .connector()
             .request(
@@ -96,16 +135,24 @@ public class ShadowInvoker implements Invoker {
 
                     invoker.invoke(
                         context,
-                        stream,
+                        recordingStream,
                         backendConnection -> {
                             final ShadowProxyConnection shadowProxyConnection = new ShadowProxyConnection(
                                 backendConnection,
                                 shadowConnection
                             );
 
-                            // Plug underlying stream to connection stream
-                            stream.bodyHandler(shadowProxyConnection::write);
-                            stream.endHandler(aVoid -> shadowProxyConnection.end());
+                            if (streamEnded[0]) {
+                                // The inner invoker (e.g. FailoverInvoker) consumed the stream before
+                                // this callback fired. Replay the buffered body to the shadow endpoint.
+                                bodyBuffer.forEach(shadowConnection::write);
+                                shadowConnection.end();
+                            } else {
+                                // Normal path: stream not yet flowing. Plug it so both endpoints
+                                // receive writes via ShadowProxyConnection.
+                                stream.bodyHandler(shadowProxyConnection::write);
+                                stream.endHandler(aVoid -> shadowProxyConnection.end());
+                            }
 
                             connectionHandler.handle(shadowProxyConnection);
                         }
