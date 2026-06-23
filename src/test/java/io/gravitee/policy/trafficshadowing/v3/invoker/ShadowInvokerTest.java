@@ -32,6 +32,7 @@ import io.gravitee.gateway.api.handler.Handler;
 import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.api.proxy.ProxyConnection;
 import io.gravitee.gateway.api.proxy.ProxyRequest;
+import io.gravitee.gateway.api.proxy.ProxyResponse;
 import io.gravitee.gateway.api.stream.ReadStream;
 import io.gravitee.policy.trafficshadowing.configuration.HttpHeader;
 import io.gravitee.policy.trafficshadowing.configuration.TrafficShadowingPolicyConfiguration;
@@ -152,5 +153,127 @@ public class ShadowInvokerTest {
         HttpHeaders shadowHeaders = proxyRequestArgumentCaptor.getValue().headers();
 
         assertThat(shadowHeaders).usingRecursiveComparison().isEqualTo(HttpHeaders.create(this.headers).set("X-Gravitee-Policy", "custom"));
+    }
+
+    /**
+     * Regression test for APIM-14211: when the inner invoker is FailoverInvoker, it consumes
+     * the request body stream before calling the backendConnection callback (the callback fires
+     * only after the circuit breaker onComplete, i.e. after a full round-trip). ShadowInvoker
+     * must buffer the body and replay it to the shadow connection in this case.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    public void shouldReplayBufferedBodyToShadowWhenStreamConsumedByInnerInvokerBeforeCallback() {
+        when(endpointResolver.resolve(any())).thenReturn(shadowEndpoint);
+
+        ProxyConnection shadowConnection = mock(ProxyConnection.class);
+        when(shadowConnection.responseHandler(any())).thenReturn(shadowConnection);
+        when(shadowConnection.exceptionHandler(any())).thenReturn(shadowConnection);
+
+        // Shadow connector fires its callback immediately (connection established)
+        doAnswer(invocation -> {
+                Handler<ProxyConnection> shadowConnHandler = invocation.getArgument(2);
+                shadowConnHandler.handle(shadowConnection);
+                return null;
+            })
+            .when(connector)
+            .request(any(), any(), any());
+
+        // Capture the intercepting handlers that recordingStream registers on the underlying stream
+        ArgumentCaptor<Handler<Buffer>> streamBodyHandlerCaptor = ArgumentCaptor.forClass(Handler.class);
+        ArgumentCaptor<Handler<Void>> streamEndHandlerCaptor = ArgumentCaptor.forClass(Handler.class);
+        when(stream.bodyHandler(streamBodyHandlerCaptor.capture())).thenReturn(stream);
+        when(stream.endHandler(streamEndHandlerCaptor.capture())).thenReturn(stream);
+
+        ProxyConnection mainBackendConnection = mock(ProxyConnection.class);
+
+        // Simulate FailoverInvoker: consume the stream entirely, then call backendConnection callback
+        doAnswer(invocation -> {
+                ReadStream<Buffer> recordingStream = invocation.getArgument(1);
+                Handler<ProxyConnection> backendConnHandler = invocation.getArgument(2);
+
+                // EndpointInvoker registers handlers on recordingStream (which delegates to stream)
+                recordingStream.bodyHandler(chunk -> {});
+                recordingStream.endHandler(v -> {});
+
+                // Stream body flows (intercepting handlers on stream are now registered)
+                streamBodyHandlerCaptor.getValue().handle(Buffer.buffer("hello"));
+                streamBodyHandlerCaptor.getValue().handle(Buffer.buffer(" world"));
+                streamEndHandlerCaptor.getValue().handle(null);
+
+                // FailoverInvoker calls connectionHandler only after stream is consumed
+                backendConnHandler.handle(mainBackendConnection);
+                return null;
+            })
+            .when(invoker)
+            .invoke(any(), any(), any());
+
+        shadowInvoker.invoke(executionContext, stream, connectionHandler);
+
+        // Shadow connection must have received the replayed body chunks
+        ArgumentCaptor<Buffer> writtenBuffers = ArgumentCaptor.forClass(Buffer.class);
+        verify(shadowConnection, times(2)).write(writtenBuffers.capture());
+        assertThat(writtenBuffers.getAllValues()).extracting(Buffer::toString).containsExactly("hello", " world");
+        verify(shadowConnection).end();
+
+        verify(connectionHandler).handle(any(ShadowProxyConnection.class));
+    }
+
+    /**
+     * Ensures the normal path (EndpointInvoker, no failover) still works after the fix:
+     * when the backendConnection callback fires before the stream is consumed, body handlers
+     * are wired through ShadowProxyConnection so both endpoints receive the data.
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    public void shouldWireBodyHandlersViaShadowProxyConnectionWhenStreamNotYetConsumed() {
+        when(endpointResolver.resolve(any())).thenReturn(shadowEndpoint);
+
+        ProxyConnection shadowConnection = mock(ProxyConnection.class);
+        when(shadowConnection.responseHandler(any())).thenReturn(shadowConnection);
+        when(shadowConnection.exceptionHandler(any())).thenReturn(shadowConnection);
+
+        doAnswer(invocation -> {
+                Handler<ProxyConnection> shadowConnHandler = invocation.getArgument(2);
+                shadowConnHandler.handle(shadowConnection);
+                return null;
+            })
+            .when(connector)
+            .request(any(), any(), any());
+
+        ProxyConnection mainBackendConnection = mock(ProxyConnection.class);
+
+        // Simulate EndpointInvoker: call backendConnection callback BEFORE stream flows
+        doAnswer(invocation -> {
+                ReadStream<Buffer> recordingStream = invocation.getArgument(1);
+                Handler<ProxyConnection> backendConnHandler = invocation.getArgument(2);
+
+                // EndpointInvoker registers handlers on recordingStream, then calls the callback
+                recordingStream.bodyHandler(chunk -> {});
+                recordingStream.endHandler(v -> {});
+
+                // Callback fires before resume() — stream has NOT been consumed yet
+                backendConnHandler.handle(mainBackendConnection);
+                return null;
+            })
+            .when(invoker)
+            .invoke(any(), any(), any());
+
+        // Capture the bodyHandler eventually registered on the original stream by the else branch
+        ArgumentCaptor<Handler<Buffer>> streamBodyHandlerCaptor = ArgumentCaptor.forClass(Handler.class);
+        when(stream.bodyHandler(streamBodyHandlerCaptor.capture())).thenReturn(stream);
+        when(stream.endHandler(any())).thenReturn(stream);
+
+        shadowInvoker.invoke(executionContext, stream, connectionHandler);
+
+        // The else branch must have overridden stream.bodyHandler with shadowProxyConnection::write,
+        // so sending a chunk through it writes to BOTH connections.
+        streamBodyHandlerCaptor.getValue().handle(Buffer.buffer("test"));
+
+        verify(mainBackendConnection).write(any(Buffer.class));
+        verify(shadowConnection).write(any(Buffer.class));
+        verify(shadowConnection, never()).end(); // end not called yet (endHandler not triggered)
+
+        verify(connectionHandler).handle(any(ShadowProxyConnection.class));
     }
 }
