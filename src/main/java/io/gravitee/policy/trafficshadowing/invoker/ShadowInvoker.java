@@ -15,10 +15,9 @@
  */
 package io.gravitee.policy.trafficshadowing.invoker;
 
+import static io.gravitee.gateway.api.http.HttpHeaderNames.HOST;
 import static org.springframework.util.StringUtils.hasText;
 
-import com.google.api.Http;
-import io.gravitee.gateway.api.ExecutionContext;
 import io.gravitee.gateway.api.buffer.Buffer;
 import io.gravitee.gateway.api.http.HttpHeaders;
 import io.gravitee.gateway.reactive.api.connector.endpoint.HttpEndpointConnector;
@@ -31,7 +30,6 @@ import io.gravitee.policy.trafficshadowing.configuration.HttpHeader;
 import io.gravitee.policy.trafficshadowing.configuration.TrafficShadowingPolicyConfiguration;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.processors.UnicastProcessor;
-import io.vertx.core.Vertx;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -137,6 +135,12 @@ public class ShadowInvoker implements HttpInvoker {
 
     private HttpHeaders handleConfigHeader(HttpExecutionContext ctx) {
         var shadowHeaders = HttpHeaders.create(ctx.request().headers());
+        // The incoming client's Host must not be forwarded to the shadow endpoint — the connection
+        // target comes from the shadow endpoint's URL. Keeping it here would trigger APIM-13512's
+        // setHost() logic in HttpConnector, changing TLS SNI to the client's host and causing TLS
+        // handshake failures when the shadow endpoint uses HTTPS. Policy-configured Host headers
+        // (added below) are preserved and will correctly override the shadow endpoint's Host.
+        shadowHeaders.remove(HOST);
         if (configuration.getHeaders() != null) {
             configuration.getHeaders().forEach(configHeader -> addConfigHeader(ctx, shadowHeaders, configHeader));
         }
