@@ -1,3 +1,10 @@
+## [3.0.3](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/compare/3.0.2...3.0.3) (2026-07-02)
+
+
+### Bug Fixes
+
+* **invoker:** strip client Host header from shadow request headers ([#60](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/issues/60)) ([4451e41](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/commit/4451e414fcc70373fcbdc3cd409b5bd05c1eb668))
+
 ## [3.0.2](https://github.com/gravitee-io/gravitee-policy-traffic-shadowing/compare/3.0.1...3.0.2) (2026-06-23)
 
 
