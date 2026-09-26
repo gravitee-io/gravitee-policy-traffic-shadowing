@@ -50,10 +50,14 @@ Traffic shadowing allows to asynchronously copy the traffic to another service. 
 == Compatibility with APIM
 
 |===
-| Plugin version | APIM version
-| 2.x            | 4.0 to 4.5
-| 3.x            | 4.6 and upper
+| Plugin version | APIM version   | Java version
+
+| 3.x            | 4.6 and upper  | 17
+| 2.x            | 4.0 to 4.5     | 17
+| 1.x            | Up to 3.x      | 8
 |===
+
+The *Java version* column is the bytecode level of the latest release of each line, which sets the minimum runtime able to load the artifact.
 
 == Configuration
 
