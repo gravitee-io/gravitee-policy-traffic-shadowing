@@ -35,7 +35,7 @@
     </parent>
 
     <properties>
-        <gravitee-apim-bom.version>4.6.7</gravitee-apim-bom.version>
+        <gravitee-apim-bom.version>4.13.11</gravitee-apim-bom.version>
 
         <properties-maven-plugin.version>1.4.0</properties-maven-plugin.version>
         <!-- Property used by the publication job in CI-->
